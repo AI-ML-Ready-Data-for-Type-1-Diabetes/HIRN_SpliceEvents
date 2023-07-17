@@ -6,7 +6,9 @@ This Github repository contains code for the paper: *Machine Learning Analysis o
 
 Data can be downloaded here: https://data.pnnl.gov/group/nodes/dataset/33494
 
-## Model Card:
+## Model Card
+
+Model Card is located here: https://ai-ml-ready-data-for-type-1-diabetes.github.io/HIRN_SpliceEvents/
 
 ## R Script Guide
 
