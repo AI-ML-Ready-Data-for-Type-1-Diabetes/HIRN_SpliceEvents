@@ -1,0 +1,1469 @@
+---
+title: 'Human Islet Research Network (HIRN): Alternative Splicing Events, Random Forest
+  Model Card'
+author: "Javier E. Flores"
+date: "2023-01-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(ggplot2)
+```
+
+```{r, echo = FALSE, cache = TRUE}
+se_data <- readRDS(file = "file/path/to/se_data.rds")
+se_metadata <- readRDS(file = "file/path/to/se_metadata.rds")
+
+# merge data and metadata and convert to more compact dataframe
+se_traintest <- dplyr::left_join(se_metadata, se_data, by = "MergeID") %>%
+  dplyr::mutate(IJC_TRAIN             = purrr::pmap(list(IJC_TRAIN_1, IJC_TRAIN_2, IJC_TRAIN_3, IJC_TRAIN_4,
+                                                         IJC_TRAIN_5, IJC_TRAIN_6, IJC_TRAIN_7, IJC_TRAIN_8,
+                                                         IJC_TRAIN_9, IJC_TRAIN_10, IJC_TRAIN_11, IJC_TRAIN_12,
+                                                         IJC_TRAIN_13, IJC_TRAIN_14, IJC_TRAIN_15, IJC_TRAIN_16,
+                                                         IJC_TRAIN_17, IJC_TRAIN_18, IJC_TRAIN_19, IJC_TRAIN_20,
+                                                         IJC_TRAIN_21, IJC_TRAIN_22, IJC_TRAIN_23, IJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                IJC_TEST             = purrr::pmap(list(IJC_TEST_1, IJC_TEST_2, IJC_TEST_3, IJC_TEST_4,
+                                                        IJC_TEST_5, IJC_TEST_6, IJC_TEST_7, IJC_TEST_8,
+                                                        IJC_TEST_9, IJC_TEST_10, IJC_TEST_11, IJC_TEST_12,
+                                                        IJC_TEST_13, IJC_TEST_14, IJC_TEST_15, IJC_TEST_16,
+                                                        IJC_TEST_17, IJC_TEST_18, IJC_TEST_19, IJC_TEST_20,
+                                                        IJC_TEST_21, IJC_TEST_22, IJC_TEST_23, IJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                IJC_TEST_Imputed             = purrr::pmap(list(IJC_TEST_imputed_1, IJC_TEST_imputed_2, IJC_TEST_imputed_3, IJC_TEST_imputed_4,
+                                                                IJC_TEST_imputed_5, IJC_TEST_imputed_6, IJC_TEST_imputed_7, IJC_TEST_imputed_8,
+                                                                IJC_TEST_imputed_9, IJC_TEST_imputed_10, IJC_TEST_imputed_11, IJC_TEST_imputed_12,
+                                                                IJC_TEST_imputed_13, IJC_TEST_imputed_14, IJC_TEST_imputed_15, IJC_TEST_imputed_16,
+                                                                IJC_TEST_imputed_17, IJC_TEST_imputed_18, IJC_TEST_imputed_19, IJC_TEST_imputed_20,
+                                                                IJC_TEST_imputed_21, IJC_TEST_imputed_22, IJC_TEST_imputed_23, IJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                SJC_TRAIN             = purrr::pmap(list(SJC_TRAIN_1, SJC_TRAIN_2, SJC_TRAIN_3, SJC_TRAIN_4,
+                                                         SJC_TRAIN_5, SJC_TRAIN_6, SJC_TRAIN_7, SJC_TRAIN_8,
+                                                         SJC_TRAIN_9, SJC_TRAIN_10, SJC_TRAIN_11, SJC_TRAIN_12,
+                                                         SJC_TRAIN_13, SJC_TRAIN_14, SJC_TRAIN_15, SJC_TRAIN_16,
+                                                         SJC_TRAIN_17, SJC_TRAIN_18, SJC_TRAIN_19, SJC_TRAIN_20,
+                                                         SJC_TRAIN_21, SJC_TRAIN_22, SJC_TRAIN_23, SJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                SJC_TEST             = purrr::pmap(list(SJC_TEST_1, SJC_TEST_2, SJC_TEST_3, SJC_TEST_4,
+                                                        SJC_TEST_5, SJC_TEST_6, SJC_TEST_7, SJC_TEST_8,
+                                                        SJC_TEST_9, SJC_TEST_10, SJC_TEST_11, SJC_TEST_12,
+                                                        SJC_TEST_13, SJC_TEST_14, SJC_TEST_15, SJC_TEST_16,
+                                                        SJC_TEST_17, SJC_TEST_18, SJC_TEST_19, SJC_TEST_20,
+                                                        SJC_TEST_21, SJC_TEST_22, SJC_TEST_23, SJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                SJC_TEST_Imputed             = purrr::pmap(list(SJC_TEST_imputed_1, SJC_TEST_imputed_2, SJC_TEST_imputed_3, SJC_TEST_imputed_4,
+                                                                SJC_TEST_imputed_5, SJC_TEST_imputed_6, SJC_TEST_imputed_7, SJC_TEST_imputed_8,
+                                                                SJC_TEST_imputed_9, SJC_TEST_imputed_10, SJC_TEST_imputed_11, SJC_TEST_imputed_12,
+                                                                SJC_TEST_imputed_13, SJC_TEST_imputed_14, SJC_TEST_imputed_15, SJC_TEST_imputed_16,
+                                                                SJC_TEST_imputed_17, SJC_TEST_imputed_18, SJC_TEST_imputed_19, SJC_TEST_imputed_20,
+                                                                SJC_TEST_imputed_21, SJC_TEST_imputed_22, SJC_TEST_imputed_23, SJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                IncLevel_TRAIN             = purrr::pmap(list(IncLevel_TRAIN_1, IncLevel_TRAIN_2, IncLevel_TRAIN_3, IncLevel_TRAIN_4,
+                                                              IncLevel_TRAIN_5, IncLevel_TRAIN_6, IncLevel_TRAIN_7, IncLevel_TRAIN_8,
+                                                              IncLevel_TRAIN_9, IncLevel_TRAIN_10, IncLevel_TRAIN_11, IncLevel_TRAIN_12,
+                                                              IncLevel_TRAIN_13, IncLevel_TRAIN_14, IncLevel_TRAIN_15, IncLevel_TRAIN_16,
+                                                              IncLevel_TRAIN_17, IncLevel_TRAIN_18, IncLevel_TRAIN_19, IncLevel_TRAIN_20,
+                                                              IncLevel_TRAIN_21, IncLevel_TRAIN_22, IncLevel_TRAIN_23, IncLevel_TRAIN_24, MergeID),
+                                                         function(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24, mergeid){
+                                                           temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                     s7, s8, s9, s10, s11, s12,
+                                                                     s13, s14, s15, s16, s17, s18,
+                                                                     s19, s20, s21, s22, s23, s24)
+                                                           attr(temp, "name") <- mergeid
+                                                           temp
+                                                         }),
+                IncLevel_TEST             = purrr::pmap(list(IncLevel_TEST_1, IncLevel_TEST_2, IncLevel_TEST_3, IncLevel_TEST_4,
+                                                             IncLevel_TEST_5, IncLevel_TEST_6, IncLevel_TEST_7, IncLevel_TEST_8,
+                                                             IncLevel_TEST_9, IncLevel_TEST_10, IncLevel_TEST_11, IncLevel_TEST_12,
+                                                             IncLevel_TEST_13, IncLevel_TEST_14, IncLevel_TEST_15, IncLevel_TEST_16,
+                                                             IncLevel_TEST_17, IncLevel_TEST_18, IncLevel_TEST_19, IncLevel_TEST_20,
+                                                             IncLevel_TEST_21, IncLevel_TEST_22, IncLevel_TEST_23, IncLevel_TEST_24, MergeID),
+                                                        function(s1, s2, s3, s4, s5, s6,
+                                                                 s7, s8, s9, s10, s11, s12,
+                                                                 s13, s14, s15, s16, s17, s18,
+                                                                 s19, s20, s21, s22, s23, s24, mergeid){
+                                                          temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24)
+                                                          attr(temp, "name") <- mergeid
+                                                          temp
+                                                        }),
+                IncLevel_TEST_Imputed             = purrr::pmap(list(IncLevel_TEST_imputed_1, IncLevel_TEST_imputed_2, IncLevel_TEST_imputed_3, IncLevel_TEST_imputed_4,
+                                                                     IncLevel_TEST_imputed_5, IncLevel_TEST_imputed_6, IncLevel_TEST_imputed_7, IncLevel_TEST_imputed_8,
+                                                                     IncLevel_TEST_imputed_9, IncLevel_TEST_imputed_10, IncLevel_TEST_imputed_11, IncLevel_TEST_imputed_12,
+                                                                     IncLevel_TEST_imputed_13, IncLevel_TEST_imputed_14, IncLevel_TEST_imputed_15, IncLevel_TEST_imputed_16,
+                                                                     IncLevel_TEST_imputed_17, IncLevel_TEST_imputed_18, IncLevel_TEST_imputed_19, IncLevel_TEST_imputed_20,
+                                                                     IncLevel_TEST_imputed_21, IncLevel_TEST_imputed_22, IncLevel_TEST_imputed_23, IncLevel_TEST_imputed_24, MergeID),
+                                                                function(s1, s2, s3, s4, s5, s6,
+                                                                         s7, s8, s9, s10, s11, s12,
+                                                                         s13, s14, s15, s16, s17, s18,
+                                                                         s19, s20, s21, s22, s23, s24, mergeid){
+                                                                  temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                            s7, s8, s9, s10, s11, s12,
+                                                                            s13, s14, s15, s16, s17, s18,
+                                                                            s19, s20, s21, s22, s23, s24)
+                                                                  attr(temp, "name") <- mergeid
+                                                                  temp
+                                                                }),
+                Status_TRAIN             = purrr::pmap(list(Status_TRAIN_1, Status_TRAIN_2, Status_TRAIN_3, Status_TRAIN_4,
+                                                            Status_TRAIN_5, Status_TRAIN_6, Status_TRAIN_7, Status_TRAIN_8,
+                                                            Status_TRAIN_9, Status_TRAIN_10, Status_TRAIN_11, Status_TRAIN_12,
+                                                            Status_TRAIN_13, Status_TRAIN_14, Status_TRAIN_15, Status_TRAIN_16,
+                                                            Status_TRAIN_17, Status_TRAIN_18, Status_TRAIN_19, Status_TRAIN_20,
+                                                            Status_TRAIN_21, Status_TRAIN_22, Status_TRAIN_23, Status_TRAIN_24, MergeID),
+                                                       function(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24, mergeid){
+                                                         temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                   s7, s8, s9, s10, s11, s12,
+                                                                   s13, s14, s15, s16, s17, s18,
+                                                                   s19, s20, s21, s22, s23, s24)
+                                                         attr(temp, "name") <- mergeid
+                                                         temp
+                                                       }),
+                Status_TEST             = purrr::pmap(list(Status_TEST_1, Status_TEST_2, Status_TEST_3, Status_TEST_4,
+                                                           Status_TEST_5, Status_TEST_6, Status_TEST_7, Status_TEST_8,
+                                                           Status_TEST_9, Status_TEST_10, Status_TEST_11, Status_TEST_12,
+                                                           Status_TEST_13, Status_TEST_14, Status_TEST_15, Status_TEST_16,
+                                                           Status_TEST_17, Status_TEST_18, Status_TEST_19, Status_TEST_20,
+                                                           Status_TEST_21, Status_TEST_22, Status_TEST_23, Status_TEST_24, MergeID),
+                                                      function(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24, mergeid){
+                                                        temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24)
+                                                        attr(temp, "name") <- mergeid
+                                                        temp
+                                                      })) %>%
+  dplyr::select(-(Status_TRAIN_1:SJC_TEST_imputed_24)) %>%
+  dplyr::select(MergeID, GeneID, geneSymbol, chr, strand, exonStart_0base, exonEnd, upstreamES,
+                upstreamEE, downstreamES, downstreamEE, IncFormLen,
+                SkipFormLen, ENSEMBL, GENENAME, IJC_TRAIN,
+                SJC_TRAIN, IncLevel_TRAIN, Status_TRAIN, PValue_TRAIN,
+                FDR_TRAIN, Filter.Count_TRAIN, IJC_TEST, SJC_TEST,
+                IncLevel_TEST, IJC_TEST_Imputed, SJC_TEST_Imputed, IncLevel_TEST_Imputed,
+                Status_TEST, PValue_TEST, FDR_TEST, Filter.Count_TEST)
+
+rm(se_data, se_metadata)
+gc()
+
+
+ri_data <- readRDS(file = "file/path/to/ri_data.rds")
+ri_metadata <- readRDS(file = "file/path/to/ri_metadata.rds")
+
+ri_traintest <- dplyr::left_join(ri_metadata, ri_data, by = "MergeID") %>%
+  dplyr::mutate(IJC_TRAIN             = purrr::pmap(list(IJC_TRAIN_1, IJC_TRAIN_2, IJC_TRAIN_3, IJC_TRAIN_4,
+                                                         IJC_TRAIN_5, IJC_TRAIN_6, IJC_TRAIN_7, IJC_TRAIN_8,
+                                                         IJC_TRAIN_9, IJC_TRAIN_10, IJC_TRAIN_11, IJC_TRAIN_12,
+                                                         IJC_TRAIN_13, IJC_TRAIN_14, IJC_TRAIN_15, IJC_TRAIN_16,
+                                                         IJC_TRAIN_17, IJC_TRAIN_18, IJC_TRAIN_19, IJC_TRAIN_20,
+                                                         IJC_TRAIN_21, IJC_TRAIN_22, IJC_TRAIN_23, IJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                IJC_TEST             = purrr::pmap(list(IJC_TEST_1, IJC_TEST_2, IJC_TEST_3, IJC_TEST_4,
+                                                        IJC_TEST_5, IJC_TEST_6, IJC_TEST_7, IJC_TEST_8,
+                                                        IJC_TEST_9, IJC_TEST_10, IJC_TEST_11, IJC_TEST_12,
+                                                        IJC_TEST_13, IJC_TEST_14, IJC_TEST_15, IJC_TEST_16,
+                                                        IJC_TEST_17, IJC_TEST_18, IJC_TEST_19, IJC_TEST_20,
+                                                        IJC_TEST_21, IJC_TEST_22, IJC_TEST_23, IJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                IJC_TEST_Imputed             = purrr::pmap(list(IJC_TEST_imputed_1, IJC_TEST_imputed_2, IJC_TEST_imputed_3, IJC_TEST_imputed_4,
+                                                                IJC_TEST_imputed_5, IJC_TEST_imputed_6, IJC_TEST_imputed_7, IJC_TEST_imputed_8,
+                                                                IJC_TEST_imputed_9, IJC_TEST_imputed_10, IJC_TEST_imputed_11, IJC_TEST_imputed_12,
+                                                                IJC_TEST_imputed_13, IJC_TEST_imputed_14, IJC_TEST_imputed_15, IJC_TEST_imputed_16,
+                                                                IJC_TEST_imputed_17, IJC_TEST_imputed_18, IJC_TEST_imputed_19, IJC_TEST_imputed_20,
+                                                                IJC_TEST_imputed_21, IJC_TEST_imputed_22, IJC_TEST_imputed_23, IJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                SJC_TRAIN             = purrr::pmap(list(SJC_TRAIN_1, SJC_TRAIN_2, SJC_TRAIN_3, SJC_TRAIN_4,
+                                                         SJC_TRAIN_5, SJC_TRAIN_6, SJC_TRAIN_7, SJC_TRAIN_8,
+                                                         SJC_TRAIN_9, SJC_TRAIN_10, SJC_TRAIN_11, SJC_TRAIN_12,
+                                                         SJC_TRAIN_13, SJC_TRAIN_14, SJC_TRAIN_15, SJC_TRAIN_16,
+                                                         SJC_TRAIN_17, SJC_TRAIN_18, SJC_TRAIN_19, SJC_TRAIN_20,
+                                                         SJC_TRAIN_21, SJC_TRAIN_22, SJC_TRAIN_23, SJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                SJC_TEST             = purrr::pmap(list(SJC_TEST_1, SJC_TEST_2, SJC_TEST_3, SJC_TEST_4,
+                                                        SJC_TEST_5, SJC_TEST_6, SJC_TEST_7, SJC_TEST_8,
+                                                        SJC_TEST_9, SJC_TEST_10, SJC_TEST_11, SJC_TEST_12,
+                                                        SJC_TEST_13, SJC_TEST_14, SJC_TEST_15, SJC_TEST_16,
+                                                        SJC_TEST_17, SJC_TEST_18, SJC_TEST_19, SJC_TEST_20,
+                                                        SJC_TEST_21, SJC_TEST_22, SJC_TEST_23, SJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                SJC_TEST_Imputed             = purrr::pmap(list(SJC_TEST_imputed_1, SJC_TEST_imputed_2, SJC_TEST_imputed_3, SJC_TEST_imputed_4,
+                                                                SJC_TEST_imputed_5, SJC_TEST_imputed_6, SJC_TEST_imputed_7, SJC_TEST_imputed_8,
+                                                                SJC_TEST_imputed_9, SJC_TEST_imputed_10, SJC_TEST_imputed_11, SJC_TEST_imputed_12,
+                                                                SJC_TEST_imputed_13, SJC_TEST_imputed_14, SJC_TEST_imputed_15, SJC_TEST_imputed_16,
+                                                                SJC_TEST_imputed_17, SJC_TEST_imputed_18, SJC_TEST_imputed_19, SJC_TEST_imputed_20,
+                                                                SJC_TEST_imputed_21, SJC_TEST_imputed_22, SJC_TEST_imputed_23, SJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                IncLevel_TRAIN             = purrr::pmap(list(IncLevel_TRAIN_1, IncLevel_TRAIN_2, IncLevel_TRAIN_3, IncLevel_TRAIN_4,
+                                                              IncLevel_TRAIN_5, IncLevel_TRAIN_6, IncLevel_TRAIN_7, IncLevel_TRAIN_8,
+                                                              IncLevel_TRAIN_9, IncLevel_TRAIN_10, IncLevel_TRAIN_11, IncLevel_TRAIN_12,
+                                                              IncLevel_TRAIN_13, IncLevel_TRAIN_14, IncLevel_TRAIN_15, IncLevel_TRAIN_16,
+                                                              IncLevel_TRAIN_17, IncLevel_TRAIN_18, IncLevel_TRAIN_19, IncLevel_TRAIN_20,
+                                                              IncLevel_TRAIN_21, IncLevel_TRAIN_22, IncLevel_TRAIN_23, IncLevel_TRAIN_24, MergeID),
+                                                         function(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24, mergeid){
+                                                           temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                     s7, s8, s9, s10, s11, s12,
+                                                                     s13, s14, s15, s16, s17, s18,
+                                                                     s19, s20, s21, s22, s23, s24)
+                                                           attr(temp, "name") <- mergeid
+                                                           temp
+                                                         }),
+                IncLevel_TEST             = purrr::pmap(list(IncLevel_TEST_1, IncLevel_TEST_2, IncLevel_TEST_3, IncLevel_TEST_4,
+                                                             IncLevel_TEST_5, IncLevel_TEST_6, IncLevel_TEST_7, IncLevel_TEST_8,
+                                                             IncLevel_TEST_9, IncLevel_TEST_10, IncLevel_TEST_11, IncLevel_TEST_12,
+                                                             IncLevel_TEST_13, IncLevel_TEST_14, IncLevel_TEST_15, IncLevel_TEST_16,
+                                                             IncLevel_TEST_17, IncLevel_TEST_18, IncLevel_TEST_19, IncLevel_TEST_20,
+                                                             IncLevel_TEST_21, IncLevel_TEST_22, IncLevel_TEST_23, IncLevel_TEST_24, MergeID),
+                                                        function(s1, s2, s3, s4, s5, s6,
+                                                                 s7, s8, s9, s10, s11, s12,
+                                                                 s13, s14, s15, s16, s17, s18,
+                                                                 s19, s20, s21, s22, s23, s24, mergeid){
+                                                          temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24)
+                                                          attr(temp, "name") <- mergeid
+                                                          temp
+                                                        }),
+                IncLevel_TEST_Imputed             = purrr::pmap(list(IncLevel_TEST_imputed_1, IncLevel_TEST_imputed_2, IncLevel_TEST_imputed_3, IncLevel_TEST_imputed_4,
+                                                                     IncLevel_TEST_imputed_5, IncLevel_TEST_imputed_6, IncLevel_TEST_imputed_7, IncLevel_TEST_imputed_8,
+                                                                     IncLevel_TEST_imputed_9, IncLevel_TEST_imputed_10, IncLevel_TEST_imputed_11, IncLevel_TEST_imputed_12,
+                                                                     IncLevel_TEST_imputed_13, IncLevel_TEST_imputed_14, IncLevel_TEST_imputed_15, IncLevel_TEST_imputed_16,
+                                                                     IncLevel_TEST_imputed_17, IncLevel_TEST_imputed_18, IncLevel_TEST_imputed_19, IncLevel_TEST_imputed_20,
+                                                                     IncLevel_TEST_imputed_21, IncLevel_TEST_imputed_22, IncLevel_TEST_imputed_23, IncLevel_TEST_imputed_24, MergeID),
+                                                                function(s1, s2, s3, s4, s5, s6,
+                                                                         s7, s8, s9, s10, s11, s12,
+                                                                         s13, s14, s15, s16, s17, s18,
+                                                                         s19, s20, s21, s22, s23, s24, mergeid){
+                                                                  temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                            s7, s8, s9, s10, s11, s12,
+                                                                            s13, s14, s15, s16, s17, s18,
+                                                                            s19, s20, s21, s22, s23, s24)
+                                                                  attr(temp, "name") <- mergeid
+                                                                  temp
+                                                                }),
+                Status_TRAIN             = purrr::pmap(list(Status_TRAIN_1, Status_TRAIN_2, Status_TRAIN_3, Status_TRAIN_4,
+                                                            Status_TRAIN_5, Status_TRAIN_6, Status_TRAIN_7, Status_TRAIN_8,
+                                                            Status_TRAIN_9, Status_TRAIN_10, Status_TRAIN_11, Status_TRAIN_12,
+                                                            Status_TRAIN_13, Status_TRAIN_14, Status_TRAIN_15, Status_TRAIN_16,
+                                                            Status_TRAIN_17, Status_TRAIN_18, Status_TRAIN_19, Status_TRAIN_20,
+                                                            Status_TRAIN_21, Status_TRAIN_22, Status_TRAIN_23, Status_TRAIN_24, MergeID),
+                                                       function(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24, mergeid){
+                                                         temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                   s7, s8, s9, s10, s11, s12,
+                                                                   s13, s14, s15, s16, s17, s18,
+                                                                   s19, s20, s21, s22, s23, s24)
+                                                         attr(temp, "name") <- mergeid
+                                                         temp
+                                                       }),
+                Status_TEST             = purrr::pmap(list(Status_TEST_1, Status_TEST_2, Status_TEST_3, Status_TEST_4,
+                                                           Status_TEST_5, Status_TEST_6, Status_TEST_7, Status_TEST_8,
+                                                           Status_TEST_9, Status_TEST_10, Status_TEST_11, Status_TEST_12,
+                                                           Status_TEST_13, Status_TEST_14, Status_TEST_15, Status_TEST_16,
+                                                           Status_TEST_17, Status_TEST_18, Status_TEST_19, Status_TEST_20,
+                                                           Status_TEST_21, Status_TEST_22, Status_TEST_23, Status_TEST_24, MergeID),
+                                                      function(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24, mergeid){
+                                                        temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24)
+                                                        attr(temp, "name") <- mergeid
+                                                        temp
+                                                      })) %>%
+  dplyr::select(-(Status_TRAIN_1:SJC_TEST_imputed_24)) %>%
+  dplyr::select(MergeID, GeneID, geneSymbol, chr, strand, riExonStart_0base, riExonEnd, upstreamES, upstreamEE,
+                downstreamES, downstreamEE, IncFormLen, SkipFormLen, ENSEMBL, GENENAME,
+                IJC_TRAIN, SJC_TRAIN, IncLevel_TRAIN, Status_TRAIN, PValue_TRAIN, FDR_TRAIN, Filter.Count_TRAIN,
+                IJC_TEST, SJC_TEST, IncLevel_TEST, IJC_TEST_Imputed, SJC_TEST_Imputed, IncLevel_TEST_Imputed, Status_TEST, PValue_TEST, FDR_TEST, Filter.Count_TEST)
+
+rm(ri_data, ri_metadata)
+gc()
+
+
+
+a5ss_data <- readRDS(file = "file/path/to/a5ss_data.rds")
+a5ss_metadata <- readRDS(file = "file/path/to/a5ss_metadata.rds")
+
+a5ss_traintest <- dplyr::left_join(a5ss_metadata, a5ss_data, by = "MergeID") %>%
+  dplyr::mutate(IJC_TRAIN             = purrr::pmap(list(IJC_TRAIN_1, IJC_TRAIN_2, IJC_TRAIN_3, IJC_TRAIN_4,
+                                                         IJC_TRAIN_5, IJC_TRAIN_6, IJC_TRAIN_7, IJC_TRAIN_8,
+                                                         IJC_TRAIN_9, IJC_TRAIN_10, IJC_TRAIN_11, IJC_TRAIN_12,
+                                                         IJC_TRAIN_13, IJC_TRAIN_14, IJC_TRAIN_15, IJC_TRAIN_16,
+                                                         IJC_TRAIN_17, IJC_TRAIN_18, IJC_TRAIN_19, IJC_TRAIN_20,
+                                                         IJC_TRAIN_21, IJC_TRAIN_22, IJC_TRAIN_23, IJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                IJC_TEST             = purrr::pmap(list(IJC_TEST_1, IJC_TEST_2, IJC_TEST_3, IJC_TEST_4,
+                                                        IJC_TEST_5, IJC_TEST_6, IJC_TEST_7, IJC_TEST_8,
+                                                        IJC_TEST_9, IJC_TEST_10, IJC_TEST_11, IJC_TEST_12,
+                                                        IJC_TEST_13, IJC_TEST_14, IJC_TEST_15, IJC_TEST_16,
+                                                        IJC_TEST_17, IJC_TEST_18, IJC_TEST_19, IJC_TEST_20,
+                                                        IJC_TEST_21, IJC_TEST_22, IJC_TEST_23, IJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                IJC_TEST_Imputed             = purrr::pmap(list(IJC_TEST_imputed_1, IJC_TEST_imputed_2, IJC_TEST_imputed_3, IJC_TEST_imputed_4,
+                                                                IJC_TEST_imputed_5, IJC_TEST_imputed_6, IJC_TEST_imputed_7, IJC_TEST_imputed_8,
+                                                                IJC_TEST_imputed_9, IJC_TEST_imputed_10, IJC_TEST_imputed_11, IJC_TEST_imputed_12,
+                                                                IJC_TEST_imputed_13, IJC_TEST_imputed_14, IJC_TEST_imputed_15, IJC_TEST_imputed_16,
+                                                                IJC_TEST_imputed_17, IJC_TEST_imputed_18, IJC_TEST_imputed_19, IJC_TEST_imputed_20,
+                                                                IJC_TEST_imputed_21, IJC_TEST_imputed_22, IJC_TEST_imputed_23, IJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                SJC_TRAIN             = purrr::pmap(list(SJC_TRAIN_1, SJC_TRAIN_2, SJC_TRAIN_3, SJC_TRAIN_4,
+                                                         SJC_TRAIN_5, SJC_TRAIN_6, SJC_TRAIN_7, SJC_TRAIN_8,
+                                                         SJC_TRAIN_9, SJC_TRAIN_10, SJC_TRAIN_11, SJC_TRAIN_12,
+                                                         SJC_TRAIN_13, SJC_TRAIN_14, SJC_TRAIN_15, SJC_TRAIN_16,
+                                                         SJC_TRAIN_17, SJC_TRAIN_18, SJC_TRAIN_19, SJC_TRAIN_20,
+                                                         SJC_TRAIN_21, SJC_TRAIN_22, SJC_TRAIN_23, SJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                SJC_TEST             = purrr::pmap(list(SJC_TEST_1, SJC_TEST_2, SJC_TEST_3, SJC_TEST_4,
+                                                        SJC_TEST_5, SJC_TEST_6, SJC_TEST_7, SJC_TEST_8,
+                                                        SJC_TEST_9, SJC_TEST_10, SJC_TEST_11, SJC_TEST_12,
+                                                        SJC_TEST_13, SJC_TEST_14, SJC_TEST_15, SJC_TEST_16,
+                                                        SJC_TEST_17, SJC_TEST_18, SJC_TEST_19, SJC_TEST_20,
+                                                        SJC_TEST_21, SJC_TEST_22, SJC_TEST_23, SJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                SJC_TEST_Imputed             = purrr::pmap(list(SJC_TEST_imputed_1, SJC_TEST_imputed_2, SJC_TEST_imputed_3, SJC_TEST_imputed_4,
+                                                                SJC_TEST_imputed_5, SJC_TEST_imputed_6, SJC_TEST_imputed_7, SJC_TEST_imputed_8,
+                                                                SJC_TEST_imputed_9, SJC_TEST_imputed_10, SJC_TEST_imputed_11, SJC_TEST_imputed_12,
+                                                                SJC_TEST_imputed_13, SJC_TEST_imputed_14, SJC_TEST_imputed_15, SJC_TEST_imputed_16,
+                                                                SJC_TEST_imputed_17, SJC_TEST_imputed_18, SJC_TEST_imputed_19, SJC_TEST_imputed_20,
+                                                                SJC_TEST_imputed_21, SJC_TEST_imputed_22, SJC_TEST_imputed_23, SJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                IncLevel_TRAIN             = purrr::pmap(list(IncLevel_TRAIN_1, IncLevel_TRAIN_2, IncLevel_TRAIN_3, IncLevel_TRAIN_4,
+                                                              IncLevel_TRAIN_5, IncLevel_TRAIN_6, IncLevel_TRAIN_7, IncLevel_TRAIN_8,
+                                                              IncLevel_TRAIN_9, IncLevel_TRAIN_10, IncLevel_TRAIN_11, IncLevel_TRAIN_12,
+                                                              IncLevel_TRAIN_13, IncLevel_TRAIN_14, IncLevel_TRAIN_15, IncLevel_TRAIN_16,
+                                                              IncLevel_TRAIN_17, IncLevel_TRAIN_18, IncLevel_TRAIN_19, IncLevel_TRAIN_20,
+                                                              IncLevel_TRAIN_21, IncLevel_TRAIN_22, IncLevel_TRAIN_23, IncLevel_TRAIN_24, MergeID),
+                                                         function(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24, mergeid){
+                                                           temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                     s7, s8, s9, s10, s11, s12,
+                                                                     s13, s14, s15, s16, s17, s18,
+                                                                     s19, s20, s21, s22, s23, s24)
+                                                           attr(temp, "name") <- mergeid
+                                                           temp
+                                                         }),
+                IncLevel_TEST             = purrr::pmap(list(IncLevel_TEST_1, IncLevel_TEST_2, IncLevel_TEST_3, IncLevel_TEST_4,
+                                                             IncLevel_TEST_5, IncLevel_TEST_6, IncLevel_TEST_7, IncLevel_TEST_8,
+                                                             IncLevel_TEST_9, IncLevel_TEST_10, IncLevel_TEST_11, IncLevel_TEST_12,
+                                                             IncLevel_TEST_13, IncLevel_TEST_14, IncLevel_TEST_15, IncLevel_TEST_16,
+                                                             IncLevel_TEST_17, IncLevel_TEST_18, IncLevel_TEST_19, IncLevel_TEST_20,
+                                                             IncLevel_TEST_21, IncLevel_TEST_22, IncLevel_TEST_23, IncLevel_TEST_24, MergeID),
+                                                        function(s1, s2, s3, s4, s5, s6,
+                                                                 s7, s8, s9, s10, s11, s12,
+                                                                 s13, s14, s15, s16, s17, s18,
+                                                                 s19, s20, s21, s22, s23, s24, mergeid){
+                                                          temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24)
+                                                          attr(temp, "name") <- mergeid
+                                                          temp
+                                                        }),
+                IncLevel_TEST_Imputed             = purrr::pmap(list(IncLevel_TEST_imputed_1, IncLevel_TEST_imputed_2, IncLevel_TEST_imputed_3, IncLevel_TEST_imputed_4,
+                                                                     IncLevel_TEST_imputed_5, IncLevel_TEST_imputed_6, IncLevel_TEST_imputed_7, IncLevel_TEST_imputed_8,
+                                                                     IncLevel_TEST_imputed_9, IncLevel_TEST_imputed_10, IncLevel_TEST_imputed_11, IncLevel_TEST_imputed_12,
+                                                                     IncLevel_TEST_imputed_13, IncLevel_TEST_imputed_14, IncLevel_TEST_imputed_15, IncLevel_TEST_imputed_16,
+                                                                     IncLevel_TEST_imputed_17, IncLevel_TEST_imputed_18, IncLevel_TEST_imputed_19, IncLevel_TEST_imputed_20,
+                                                                     IncLevel_TEST_imputed_21, IncLevel_TEST_imputed_22, IncLevel_TEST_imputed_23, IncLevel_TEST_imputed_24, MergeID),
+                                                                function(s1, s2, s3, s4, s5, s6,
+                                                                         s7, s8, s9, s10, s11, s12,
+                                                                         s13, s14, s15, s16, s17, s18,
+                                                                         s19, s20, s21, s22, s23, s24, mergeid){
+                                                                  temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                            s7, s8, s9, s10, s11, s12,
+                                                                            s13, s14, s15, s16, s17, s18,
+                                                                            s19, s20, s21, s22, s23, s24)
+                                                                  attr(temp, "name") <- mergeid
+                                                                  temp
+                                                                }),
+                Status_TRAIN             = purrr::pmap(list(Status_TRAIN_1, Status_TRAIN_2, Status_TRAIN_3, Status_TRAIN_4,
+                                                            Status_TRAIN_5, Status_TRAIN_6, Status_TRAIN_7, Status_TRAIN_8,
+                                                            Status_TRAIN_9, Status_TRAIN_10, Status_TRAIN_11, Status_TRAIN_12,
+                                                            Status_TRAIN_13, Status_TRAIN_14, Status_TRAIN_15, Status_TRAIN_16,
+                                                            Status_TRAIN_17, Status_TRAIN_18, Status_TRAIN_19, Status_TRAIN_20,
+                                                            Status_TRAIN_21, Status_TRAIN_22, Status_TRAIN_23, Status_TRAIN_24, MergeID),
+                                                       function(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24, mergeid){
+                                                         temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                   s7, s8, s9, s10, s11, s12,
+                                                                   s13, s14, s15, s16, s17, s18,
+                                                                   s19, s20, s21, s22, s23, s24)
+                                                         attr(temp, "name") <- mergeid
+                                                         temp
+                                                       }),
+                Status_TEST             = purrr::pmap(list(Status_TEST_1, Status_TEST_2, Status_TEST_3, Status_TEST_4,
+                                                           Status_TEST_5, Status_TEST_6, Status_TEST_7, Status_TEST_8,
+                                                           Status_TEST_9, Status_TEST_10, Status_TEST_11, Status_TEST_12,
+                                                           Status_TEST_13, Status_TEST_14, Status_TEST_15, Status_TEST_16,
+                                                           Status_TEST_17, Status_TEST_18, Status_TEST_19, Status_TEST_20,
+                                                           Status_TEST_21, Status_TEST_22, Status_TEST_23, Status_TEST_24, MergeID),
+                                                      function(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24, mergeid){
+                                                        temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24)
+                                                        attr(temp, "name") <- mergeid
+                                                        temp
+                                                      })) %>%
+  dplyr::select(-(Status_TRAIN_1:SJC_TEST_imputed_24)) %>%
+  dplyr::select(MergeID, GeneID, geneSymbol, chr, strand, longExonStart_0base, longExonEnd, shortES, shortEE,
+                flankingES, flankingEE, IncFormLen, SkipFormLen, ENSEMBL, GENENAME,
+                IJC_TRAIN, SJC_TRAIN, IncLevel_TRAIN, Status_TRAIN, PValue_TRAIN, FDR_TRAIN, Filter.Count_TRAIN,
+                IJC_TEST, SJC_TEST, IncLevel_TEST, IJC_TEST_Imputed, SJC_TEST_Imputed, IncLevel_TEST_Imputed, Status_TEST, PValue_TEST, FDR_TEST, Filter.Count_TEST)
+
+rm(a5ss_data, a5ss_metadata)
+gc()
+
+
+a3ss_data <- readRDS(file = "file/path/to/a3ss_data.rds")
+a3ss_metadata <- readRDS(file = "file/path/to/a3ss_metadata.rds")
+
+a3ss_traintest <- dplyr::left_join(a3ss_metadata, a3ss_data, by = "MergeID") %>%
+  dplyr::mutate(IJC_TRAIN             = purrr::pmap(list(IJC_TRAIN_1, IJC_TRAIN_2, IJC_TRAIN_3, IJC_TRAIN_4,
+                                                         IJC_TRAIN_5, IJC_TRAIN_6, IJC_TRAIN_7, IJC_TRAIN_8,
+                                                         IJC_TRAIN_9, IJC_TRAIN_10, IJC_TRAIN_11, IJC_TRAIN_12,
+                                                         IJC_TRAIN_13, IJC_TRAIN_14, IJC_TRAIN_15, IJC_TRAIN_16,
+                                                         IJC_TRAIN_17, IJC_TRAIN_18, IJC_TRAIN_19, IJC_TRAIN_20,
+                                                         IJC_TRAIN_21, IJC_TRAIN_22, IJC_TRAIN_23, IJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                IJC_TEST             = purrr::pmap(list(IJC_TEST_1, IJC_TEST_2, IJC_TEST_3, IJC_TEST_4,
+                                                        IJC_TEST_5, IJC_TEST_6, IJC_TEST_7, IJC_TEST_8,
+                                                        IJC_TEST_9, IJC_TEST_10, IJC_TEST_11, IJC_TEST_12,
+                                                        IJC_TEST_13, IJC_TEST_14, IJC_TEST_15, IJC_TEST_16,
+                                                        IJC_TEST_17, IJC_TEST_18, IJC_TEST_19, IJC_TEST_20,
+                                                        IJC_TEST_21, IJC_TEST_22, IJC_TEST_23, IJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                IJC_TEST_Imputed             = purrr::pmap(list(IJC_TEST_imputed_1, IJC_TEST_imputed_2, IJC_TEST_imputed_3, IJC_TEST_imputed_4,
+                                                                IJC_TEST_imputed_5, IJC_TEST_imputed_6, IJC_TEST_imputed_7, IJC_TEST_imputed_8,
+                                                                IJC_TEST_imputed_9, IJC_TEST_imputed_10, IJC_TEST_imputed_11, IJC_TEST_imputed_12,
+                                                                IJC_TEST_imputed_13, IJC_TEST_imputed_14, IJC_TEST_imputed_15, IJC_TEST_imputed_16,
+                                                                IJC_TEST_imputed_17, IJC_TEST_imputed_18, IJC_TEST_imputed_19, IJC_TEST_imputed_20,
+                                                                IJC_TEST_imputed_21, IJC_TEST_imputed_22, IJC_TEST_imputed_23, IJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                SJC_TRAIN             = purrr::pmap(list(SJC_TRAIN_1, SJC_TRAIN_2, SJC_TRAIN_3, SJC_TRAIN_4,
+                                                         SJC_TRAIN_5, SJC_TRAIN_6, SJC_TRAIN_7, SJC_TRAIN_8,
+                                                         SJC_TRAIN_9, SJC_TRAIN_10, SJC_TRAIN_11, SJC_TRAIN_12,
+                                                         SJC_TRAIN_13, SJC_TRAIN_14, SJC_TRAIN_15, SJC_TRAIN_16,
+                                                         SJC_TRAIN_17, SJC_TRAIN_18, SJC_TRAIN_19, SJC_TRAIN_20,
+                                                         SJC_TRAIN_21, SJC_TRAIN_22, SJC_TRAIN_23, SJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                SJC_TEST             = purrr::pmap(list(SJC_TEST_1, SJC_TEST_2, SJC_TEST_3, SJC_TEST_4,
+                                                        SJC_TEST_5, SJC_TEST_6, SJC_TEST_7, SJC_TEST_8,
+                                                        SJC_TEST_9, SJC_TEST_10, SJC_TEST_11, SJC_TEST_12,
+                                                        SJC_TEST_13, SJC_TEST_14, SJC_TEST_15, SJC_TEST_16,
+                                                        SJC_TEST_17, SJC_TEST_18, SJC_TEST_19, SJC_TEST_20,
+                                                        SJC_TEST_21, SJC_TEST_22, SJC_TEST_23, SJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                SJC_TEST_Imputed             = purrr::pmap(list(SJC_TEST_imputed_1, SJC_TEST_imputed_2, SJC_TEST_imputed_3, SJC_TEST_imputed_4,
+                                                                SJC_TEST_imputed_5, SJC_TEST_imputed_6, SJC_TEST_imputed_7, SJC_TEST_imputed_8,
+                                                                SJC_TEST_imputed_9, SJC_TEST_imputed_10, SJC_TEST_imputed_11, SJC_TEST_imputed_12,
+                                                                SJC_TEST_imputed_13, SJC_TEST_imputed_14, SJC_TEST_imputed_15, SJC_TEST_imputed_16,
+                                                                SJC_TEST_imputed_17, SJC_TEST_imputed_18, SJC_TEST_imputed_19, SJC_TEST_imputed_20,
+                                                                SJC_TEST_imputed_21, SJC_TEST_imputed_22, SJC_TEST_imputed_23, SJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                IncLevel_TRAIN             = purrr::pmap(list(IncLevel_TRAIN_1, IncLevel_TRAIN_2, IncLevel_TRAIN_3, IncLevel_TRAIN_4,
+                                                              IncLevel_TRAIN_5, IncLevel_TRAIN_6, IncLevel_TRAIN_7, IncLevel_TRAIN_8,
+                                                              IncLevel_TRAIN_9, IncLevel_TRAIN_10, IncLevel_TRAIN_11, IncLevel_TRAIN_12,
+                                                              IncLevel_TRAIN_13, IncLevel_TRAIN_14, IncLevel_TRAIN_15, IncLevel_TRAIN_16,
+                                                              IncLevel_TRAIN_17, IncLevel_TRAIN_18, IncLevel_TRAIN_19, IncLevel_TRAIN_20,
+                                                              IncLevel_TRAIN_21, IncLevel_TRAIN_22, IncLevel_TRAIN_23, IncLevel_TRAIN_24, MergeID),
+                                                         function(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24, mergeid){
+                                                           temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                     s7, s8, s9, s10, s11, s12,
+                                                                     s13, s14, s15, s16, s17, s18,
+                                                                     s19, s20, s21, s22, s23, s24)
+                                                           attr(temp, "name") <- mergeid
+                                                           temp
+                                                         }),
+                IncLevel_TEST             = purrr::pmap(list(IncLevel_TEST_1, IncLevel_TEST_2, IncLevel_TEST_3, IncLevel_TEST_4,
+                                                             IncLevel_TEST_5, IncLevel_TEST_6, IncLevel_TEST_7, IncLevel_TEST_8,
+                                                             IncLevel_TEST_9, IncLevel_TEST_10, IncLevel_TEST_11, IncLevel_TEST_12,
+                                                             IncLevel_TEST_13, IncLevel_TEST_14, IncLevel_TEST_15, IncLevel_TEST_16,
+                                                             IncLevel_TEST_17, IncLevel_TEST_18, IncLevel_TEST_19, IncLevel_TEST_20,
+                                                             IncLevel_TEST_21, IncLevel_TEST_22, IncLevel_TEST_23, IncLevel_TEST_24, MergeID),
+                                                        function(s1, s2, s3, s4, s5, s6,
+                                                                 s7, s8, s9, s10, s11, s12,
+                                                                 s13, s14, s15, s16, s17, s18,
+                                                                 s19, s20, s21, s22, s23, s24, mergeid){
+                                                          temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24)
+                                                          attr(temp, "name") <- mergeid
+                                                          temp
+                                                        }),
+                IncLevel_TEST_Imputed             = purrr::pmap(list(IncLevel_TEST_imputed_1, IncLevel_TEST_imputed_2, IncLevel_TEST_imputed_3, IncLevel_TEST_imputed_4,
+                                                                     IncLevel_TEST_imputed_5, IncLevel_TEST_imputed_6, IncLevel_TEST_imputed_7, IncLevel_TEST_imputed_8,
+                                                                     IncLevel_TEST_imputed_9, IncLevel_TEST_imputed_10, IncLevel_TEST_imputed_11, IncLevel_TEST_imputed_12,
+                                                                     IncLevel_TEST_imputed_13, IncLevel_TEST_imputed_14, IncLevel_TEST_imputed_15, IncLevel_TEST_imputed_16,
+                                                                     IncLevel_TEST_imputed_17, IncLevel_TEST_imputed_18, IncLevel_TEST_imputed_19, IncLevel_TEST_imputed_20,
+                                                                     IncLevel_TEST_imputed_21, IncLevel_TEST_imputed_22, IncLevel_TEST_imputed_23, IncLevel_TEST_imputed_24, MergeID),
+                                                                function(s1, s2, s3, s4, s5, s6,
+                                                                         s7, s8, s9, s10, s11, s12,
+                                                                         s13, s14, s15, s16, s17, s18,
+                                                                         s19, s20, s21, s22, s23, s24, mergeid){
+                                                                  temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                            s7, s8, s9, s10, s11, s12,
+                                                                            s13, s14, s15, s16, s17, s18,
+                                                                            s19, s20, s21, s22, s23, s24)
+                                                                  attr(temp, "name") <- mergeid
+                                                                  temp
+                                                                }),
+                Status_TRAIN             = purrr::pmap(list(Status_TRAIN_1, Status_TRAIN_2, Status_TRAIN_3, Status_TRAIN_4,
+                                                            Status_TRAIN_5, Status_TRAIN_6, Status_TRAIN_7, Status_TRAIN_8,
+                                                            Status_TRAIN_9, Status_TRAIN_10, Status_TRAIN_11, Status_TRAIN_12,
+                                                            Status_TRAIN_13, Status_TRAIN_14, Status_TRAIN_15, Status_TRAIN_16,
+                                                            Status_TRAIN_17, Status_TRAIN_18, Status_TRAIN_19, Status_TRAIN_20,
+                                                            Status_TRAIN_21, Status_TRAIN_22, Status_TRAIN_23, Status_TRAIN_24, MergeID),
+                                                       function(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24, mergeid){
+                                                         temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                   s7, s8, s9, s10, s11, s12,
+                                                                   s13, s14, s15, s16, s17, s18,
+                                                                   s19, s20, s21, s22, s23, s24)
+                                                         attr(temp, "name") <- mergeid
+                                                         temp
+                                                       }),
+                Status_TEST             = purrr::pmap(list(Status_TEST_1, Status_TEST_2, Status_TEST_3, Status_TEST_4,
+                                                           Status_TEST_5, Status_TEST_6, Status_TEST_7, Status_TEST_8,
+                                                           Status_TEST_9, Status_TEST_10, Status_TEST_11, Status_TEST_12,
+                                                           Status_TEST_13, Status_TEST_14, Status_TEST_15, Status_TEST_16,
+                                                           Status_TEST_17, Status_TEST_18, Status_TEST_19, Status_TEST_20,
+                                                           Status_TEST_21, Status_TEST_22, Status_TEST_23, Status_TEST_24, MergeID),
+                                                      function(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24, mergeid){
+                                                        temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24)
+                                                        attr(temp, "name") <- mergeid
+                                                        temp
+                                                      })) %>%
+  dplyr::select(-(Status_TRAIN_1:SJC_TEST_imputed_24)) %>%
+  dplyr::select(MergeID, GeneID, geneSymbol, chr, strand, longExonStart_0base, longExonEnd, shortES, shortEE,
+                flankingES, flankingEE, IncFormLen, SkipFormLen, ENSEMBL, GENENAME,
+                IJC_TRAIN, SJC_TRAIN, IncLevel_TRAIN, Status_TRAIN, PValue_TRAIN, FDR_TRAIN, Filter.Count_TRAIN,
+                IJC_TEST, SJC_TEST, IncLevel_TEST, IJC_TEST_Imputed, SJC_TEST_Imputed, IncLevel_TEST_Imputed, Status_TEST, PValue_TEST, FDR_TEST, Filter.Count_TEST)
+
+rm(a3ss_data, a3ss_metadata)
+gc()
+
+
+
+mxe_data <- readRDS(file = "file/path/to/mxe_data.rds")
+mxe_metadata <- readRDS(file = "file/path/to/mxe_metadata.rds")
+
+mxe_traintest <- dplyr::left_join(mxe_metadata, mxe_data, by = "MergeID") %>%
+  dplyr::mutate(IJC_TRAIN             = purrr::pmap(list(IJC_TRAIN_1, IJC_TRAIN_2, IJC_TRAIN_3, IJC_TRAIN_4,
+                                                         IJC_TRAIN_5, IJC_TRAIN_6, IJC_TRAIN_7, IJC_TRAIN_8,
+                                                         IJC_TRAIN_9, IJC_TRAIN_10, IJC_TRAIN_11, IJC_TRAIN_12,
+                                                         IJC_TRAIN_13, IJC_TRAIN_14, IJC_TRAIN_15, IJC_TRAIN_16,
+                                                         IJC_TRAIN_17, IJC_TRAIN_18, IJC_TRAIN_19, IJC_TRAIN_20,
+                                                         IJC_TRAIN_21, IJC_TRAIN_22, IJC_TRAIN_23, IJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                IJC_TEST             = purrr::pmap(list(IJC_TEST_1, IJC_TEST_2, IJC_TEST_3, IJC_TEST_4,
+                                                        IJC_TEST_5, IJC_TEST_6, IJC_TEST_7, IJC_TEST_8,
+                                                        IJC_TEST_9, IJC_TEST_10, IJC_TEST_11, IJC_TEST_12,
+                                                        IJC_TEST_13, IJC_TEST_14, IJC_TEST_15, IJC_TEST_16,
+                                                        IJC_TEST_17, IJC_TEST_18, IJC_TEST_19, IJC_TEST_20,
+                                                        IJC_TEST_21, IJC_TEST_22, IJC_TEST_23, IJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                IJC_TEST_Imputed             = purrr::pmap(list(IJC_TEST_imputed_1, IJC_TEST_imputed_2, IJC_TEST_imputed_3, IJC_TEST_imputed_4,
+                                                                IJC_TEST_imputed_5, IJC_TEST_imputed_6, IJC_TEST_imputed_7, IJC_TEST_imputed_8,
+                                                                IJC_TEST_imputed_9, IJC_TEST_imputed_10, IJC_TEST_imputed_11, IJC_TEST_imputed_12,
+                                                                IJC_TEST_imputed_13, IJC_TEST_imputed_14, IJC_TEST_imputed_15, IJC_TEST_imputed_16,
+                                                                IJC_TEST_imputed_17, IJC_TEST_imputed_18, IJC_TEST_imputed_19, IJC_TEST_imputed_20,
+                                                                IJC_TEST_imputed_21, IJC_TEST_imputed_22, IJC_TEST_imputed_23, IJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                SJC_TRAIN             = purrr::pmap(list(SJC_TRAIN_1, SJC_TRAIN_2, SJC_TRAIN_3, SJC_TRAIN_4,
+                                                         SJC_TRAIN_5, SJC_TRAIN_6, SJC_TRAIN_7, SJC_TRAIN_8,
+                                                         SJC_TRAIN_9, SJC_TRAIN_10, SJC_TRAIN_11, SJC_TRAIN_12,
+                                                         SJC_TRAIN_13, SJC_TRAIN_14, SJC_TRAIN_15, SJC_TRAIN_16,
+                                                         SJC_TRAIN_17, SJC_TRAIN_18, SJC_TRAIN_19, SJC_TRAIN_20,
+                                                         SJC_TRAIN_21, SJC_TRAIN_22, SJC_TRAIN_23, SJC_TRAIN_24, MergeID),
+                                                    function(s1, s2, s3, s4, s5, s6,
+                                                             s7, s8, s9, s10, s11, s12,
+                                                             s13, s14, s15, s16, s17, s18,
+                                                             s19, s20, s21, s22, s23, s24, mergeid){
+                                                      temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24)
+                                                      attr(temp, "name") <- mergeid
+                                                      temp
+                                                    }),
+                SJC_TEST             = purrr::pmap(list(SJC_TEST_1, SJC_TEST_2, SJC_TEST_3, SJC_TEST_4,
+                                                        SJC_TEST_5, SJC_TEST_6, SJC_TEST_7, SJC_TEST_8,
+                                                        SJC_TEST_9, SJC_TEST_10, SJC_TEST_11, SJC_TEST_12,
+                                                        SJC_TEST_13, SJC_TEST_14, SJC_TEST_15, SJC_TEST_16,
+                                                        SJC_TEST_17, SJC_TEST_18, SJC_TEST_19, SJC_TEST_20,
+                                                        SJC_TEST_21, SJC_TEST_22, SJC_TEST_23, SJC_TEST_24, MergeID),
+                                                   function(s1, s2, s3, s4, s5, s6,
+                                                            s7, s8, s9, s10, s11, s12,
+                                                            s13, s14, s15, s16, s17, s18,
+                                                            s19, s20, s21, s22, s23, s24, mergeid){
+                                                     temp <- c(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24)
+                                                     attr(temp, "name") <- mergeid
+                                                     temp
+                                                   }),
+                SJC_TEST_Imputed             = purrr::pmap(list(SJC_TEST_imputed_1, SJC_TEST_imputed_2, SJC_TEST_imputed_3, SJC_TEST_imputed_4,
+                                                                SJC_TEST_imputed_5, SJC_TEST_imputed_6, SJC_TEST_imputed_7, SJC_TEST_imputed_8,
+                                                                SJC_TEST_imputed_9, SJC_TEST_imputed_10, SJC_TEST_imputed_11, SJC_TEST_imputed_12,
+                                                                SJC_TEST_imputed_13, SJC_TEST_imputed_14, SJC_TEST_imputed_15, SJC_TEST_imputed_16,
+                                                                SJC_TEST_imputed_17, SJC_TEST_imputed_18, SJC_TEST_imputed_19, SJC_TEST_imputed_20,
+                                                                SJC_TEST_imputed_21, SJC_TEST_imputed_22, SJC_TEST_imputed_23, SJC_TEST_imputed_24, MergeID),
+                                                           function(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24, mergeid){
+                                                             temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                       s7, s8, s9, s10, s11, s12,
+                                                                       s13, s14, s15, s16, s17, s18,
+                                                                       s19, s20, s21, s22, s23, s24)
+                                                             attr(temp, "name") <- mergeid
+                                                             temp
+                                                           }),
+                IncLevel_TRAIN             = purrr::pmap(list(IncLevel_TRAIN_1, IncLevel_TRAIN_2, IncLevel_TRAIN_3, IncLevel_TRAIN_4,
+                                                              IncLevel_TRAIN_5, IncLevel_TRAIN_6, IncLevel_TRAIN_7, IncLevel_TRAIN_8,
+                                                              IncLevel_TRAIN_9, IncLevel_TRAIN_10, IncLevel_TRAIN_11, IncLevel_TRAIN_12,
+                                                              IncLevel_TRAIN_13, IncLevel_TRAIN_14, IncLevel_TRAIN_15, IncLevel_TRAIN_16,
+                                                              IncLevel_TRAIN_17, IncLevel_TRAIN_18, IncLevel_TRAIN_19, IncLevel_TRAIN_20,
+                                                              IncLevel_TRAIN_21, IncLevel_TRAIN_22, IncLevel_TRAIN_23, IncLevel_TRAIN_24, MergeID),
+                                                         function(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24, mergeid){
+                                                           temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                     s7, s8, s9, s10, s11, s12,
+                                                                     s13, s14, s15, s16, s17, s18,
+                                                                     s19, s20, s21, s22, s23, s24)
+                                                           attr(temp, "name") <- mergeid
+                                                           temp
+                                                         }),
+                IncLevel_TEST             = purrr::pmap(list(IncLevel_TEST_1, IncLevel_TEST_2, IncLevel_TEST_3, IncLevel_TEST_4,
+                                                             IncLevel_TEST_5, IncLevel_TEST_6, IncLevel_TEST_7, IncLevel_TEST_8,
+                                                             IncLevel_TEST_9, IncLevel_TEST_10, IncLevel_TEST_11, IncLevel_TEST_12,
+                                                             IncLevel_TEST_13, IncLevel_TEST_14, IncLevel_TEST_15, IncLevel_TEST_16,
+                                                             IncLevel_TEST_17, IncLevel_TEST_18, IncLevel_TEST_19, IncLevel_TEST_20,
+                                                             IncLevel_TEST_21, IncLevel_TEST_22, IncLevel_TEST_23, IncLevel_TEST_24, MergeID),
+                                                        function(s1, s2, s3, s4, s5, s6,
+                                                                 s7, s8, s9, s10, s11, s12,
+                                                                 s13, s14, s15, s16, s17, s18,
+                                                                 s19, s20, s21, s22, s23, s24, mergeid){
+                                                          temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                    s7, s8, s9, s10, s11, s12,
+                                                                    s13, s14, s15, s16, s17, s18,
+                                                                    s19, s20, s21, s22, s23, s24)
+                                                          attr(temp, "name") <- mergeid
+                                                          temp
+                                                        }),
+                IncLevel_TEST_Imputed             = purrr::pmap(list(IncLevel_TEST_imputed_1, IncLevel_TEST_imputed_2, IncLevel_TEST_imputed_3, IncLevel_TEST_imputed_4,
+                                                                     IncLevel_TEST_imputed_5, IncLevel_TEST_imputed_6, IncLevel_TEST_imputed_7, IncLevel_TEST_imputed_8,
+                                                                     IncLevel_TEST_imputed_9, IncLevel_TEST_imputed_10, IncLevel_TEST_imputed_11, IncLevel_TEST_imputed_12,
+                                                                     IncLevel_TEST_imputed_13, IncLevel_TEST_imputed_14, IncLevel_TEST_imputed_15, IncLevel_TEST_imputed_16,
+                                                                     IncLevel_TEST_imputed_17, IncLevel_TEST_imputed_18, IncLevel_TEST_imputed_19, IncLevel_TEST_imputed_20,
+                                                                     IncLevel_TEST_imputed_21, IncLevel_TEST_imputed_22, IncLevel_TEST_imputed_23, IncLevel_TEST_imputed_24, MergeID),
+                                                                function(s1, s2, s3, s4, s5, s6,
+                                                                         s7, s8, s9, s10, s11, s12,
+                                                                         s13, s14, s15, s16, s17, s18,
+                                                                         s19, s20, s21, s22, s23, s24, mergeid){
+                                                                  temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                            s7, s8, s9, s10, s11, s12,
+                                                                            s13, s14, s15, s16, s17, s18,
+                                                                            s19, s20, s21, s22, s23, s24)
+                                                                  attr(temp, "name") <- mergeid
+                                                                  temp
+                                                                }),
+                Status_TRAIN             = purrr::pmap(list(Status_TRAIN_1, Status_TRAIN_2, Status_TRAIN_3, Status_TRAIN_4,
+                                                            Status_TRAIN_5, Status_TRAIN_6, Status_TRAIN_7, Status_TRAIN_8,
+                                                            Status_TRAIN_9, Status_TRAIN_10, Status_TRAIN_11, Status_TRAIN_12,
+                                                            Status_TRAIN_13, Status_TRAIN_14, Status_TRAIN_15, Status_TRAIN_16,
+                                                            Status_TRAIN_17, Status_TRAIN_18, Status_TRAIN_19, Status_TRAIN_20,
+                                                            Status_TRAIN_21, Status_TRAIN_22, Status_TRAIN_23, Status_TRAIN_24, MergeID),
+                                                       function(s1, s2, s3, s4, s5, s6,
+                                                                s7, s8, s9, s10, s11, s12,
+                                                                s13, s14, s15, s16, s17, s18,
+                                                                s19, s20, s21, s22, s23, s24, mergeid){
+                                                         temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                   s7, s8, s9, s10, s11, s12,
+                                                                   s13, s14, s15, s16, s17, s18,
+                                                                   s19, s20, s21, s22, s23, s24)
+                                                         attr(temp, "name") <- mergeid
+                                                         temp
+                                                       }),
+                Status_TEST             = purrr::pmap(list(Status_TEST_1, Status_TEST_2, Status_TEST_3, Status_TEST_4,
+                                                           Status_TEST_5, Status_TEST_6, Status_TEST_7, Status_TEST_8,
+                                                           Status_TEST_9, Status_TEST_10, Status_TEST_11, Status_TEST_12,
+                                                           Status_TEST_13, Status_TEST_14, Status_TEST_15, Status_TEST_16,
+                                                           Status_TEST_17, Status_TEST_18, Status_TEST_19, Status_TEST_20,
+                                                           Status_TEST_21, Status_TEST_22, Status_TEST_23, Status_TEST_24, MergeID),
+                                                      function(s1, s2, s3, s4, s5, s6,
+                                                               s7, s8, s9, s10, s11, s12,
+                                                               s13, s14, s15, s16, s17, s18,
+                                                               s19, s20, s21, s22, s23, s24, mergeid){
+                                                        temp <- c(s1, s2, s3, s4, s5, s6,
+                                                                  s7, s8, s9, s10, s11, s12,
+                                                                  s13, s14, s15, s16, s17, s18,
+                                                                  s19, s20, s21, s22, s23, s24)
+                                                        attr(temp, "name") <- mergeid
+                                                        temp
+                                                      })) %>%
+  dplyr::select(-(Status_TRAIN_1:SJC_TEST_imputed_24)) %>%
+  dplyr::select(MergeID, GeneID, geneSymbol, chr, strand, X1stExonStart_0base, X2ndExonEnd,
+                X2ndExonStart_0base, X1stExonEnd, upstreamES, upstreamEE,
+                downstreamES, downstreamEE, IncFormLen, SkipFormLen, ENSEMBL, GENENAME,
+                IJC_TRAIN, SJC_TRAIN, IncLevel_TRAIN, Status_TRAIN, PValue_TRAIN, FDR_TRAIN, Filter.Count_TRAIN,
+                IJC_TEST, SJC_TEST, IncLevel_TEST, IJC_TEST_Imputed, SJC_TEST_Imputed, IncLevel_TEST_Imputed, Status_TEST, PValue_TEST, FDR_TEST, Filter.Count_TEST)
+
+rm(mxe_data, mxe_metadata)
+gc()
+```
+
+
+```{r, echo = FALSE, cache = TRUE}
+# Tuning results
+se_auctune <- readRDS(file = "file/path/to/se_auctune_tidy.rds")
+ri_auctune <- readRDS(file = "file/path/to/ri_auctune_tidy.rds")
+a5ss_auctune <- readRDS(file = "file/path/to/a5ss_auctune_tidy.rds")
+a3ss_auctune <- readRDS(file = "file/path/to/a3ss_auctune_tidy.rds")
+mxe_auctune <- readRDS(file = "file/path/to/mxe_auctune_tidy.rds")
+```
+
+
+<style>
+.column-left{
+  float: left;
+  width: 50%;
+  text-align: left;
+}
+.column-right{
+  float: right;
+  width: 50%;
+  text-align: right;
+}
+.column-left2{
+  float: left;
+  width: 33%;
+  text-align: left;
+}
+.column-center{
+  display: inline-block;
+  width: 33%;
+  text-align: center;
+}
+.column-right2{
+  float: right;
+  width: 33%;
+  text-align: right;
+}
+</style>
+
+## Data
+
+Inclusion levels of alternative splicing (AS) events of five different varieties (i.e. skipped exon (SE), retained intron (RI), alternative 5' splice site (A5SS), alternative 3' splice site (A3SS), and mutually exclusive exons (MXE)) were measured in human blood samples from two separate cohorts of patients.
+
+<div class="column-left">
+**Cohort 1 (Training Cohort):**
+
+  * 12 healthy controls; 12 new onset type 1 diabetic (T1D) cases
+  * cases and controls matched on biological sex, age, and body mass index (BMI)
+  * 180 million reads
+  
+**Cohort 2 (Testing Cohort):**
+
+  * 12 healthy controls; 12 new onset type 1 diabetic (T1D) cases
+  * cases and controls matched on biological sex and age. BMI not recorded.
+  * 150 million reads
+</div>
+
+<div class="column-right">
+```{r, echo = FALSE}
+
+# Total counts
+se_total_train   <- se_traintest %>% dplyr::filter(!is.na(.data$FDR_TRAIN)) %>% nrow()
+se_total_test    <- se_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST)) %>% nrow()
+ri_total_train   <- ri_traintest %>% dplyr::filter(!is.na(.data$FDR_TRAIN)) %>% nrow()
+ri_total_test    <- ri_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST)) %>% nrow()
+a5ss_total_train <- a5ss_traintest %>% dplyr::filter(!is.na(.data$FDR_TRAIN)) %>% nrow()
+a5ss_total_test  <- a5ss_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST)) %>% nrow()
+a3ss_total_train <- a3ss_traintest %>% dplyr::filter(!is.na(.data$FDR_TRAIN)) %>% nrow()
+a3ss_total_test  <- a3ss_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST)) %>% nrow()
+mxe_total_train  <- mxe_traintest %>% dplyr::filter(!is.na(.data$FDR_TRAIN)) %>% nrow()
+mxe_total_test   <- mxe_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST)) %>% nrow()
+        
+# Total Common counts
+se_total_shared    <- se_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST), !is.na(.data$FDR_TRAIN)) %>% nrow()
+ri_total_shared    <- ri_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST), !is.na(.data$FDR_TRAIN)) %>% nrow()
+a5ss_total_shared  <- a5ss_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST), !is.na(.data$FDR_TRAIN)) %>% nrow()
+a3ss_total_shared  <- a3ss_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST), !is.na(.data$FDR_TRAIN)) %>% nrow()
+mxe_total_shared   <- mxe_traintest %>% dplyr::filter(!is.na(.data$FDR_TEST), !is.na(.data$FDR_TRAIN)) %>% nrow()
+        
+
+tempdf <- data.frame(Event = c("Skipped exon (SE)",
+                               "Retained intron (RI)",
+                               "Alternative 5' splice site (A5SS)",
+                               "Alternative 3' splice site (A3SS)",
+                               "Mutually exclusive exon (MXE)"),
+                     `Total Events (Cohort 1)` = c(se_total_train, ri_total_train,
+                                                   a5ss_total_train, a3ss_total_train,
+                                                   mxe_total_train),
+                     `Total Events (Cohort 2)` = c(se_total_test, ri_total_test,
+                                                  a5ss_total_test, a3ss_total_test,
+                                                  mxe_total_test),
+                     `Total Events (Shared)` = c(se_total_shared, ri_total_shared,
+                                               a5ss_total_shared, a3ss_total_shared,
+                                               mxe_total_shared),
+                     check.names = FALSE
+                     )
+knitr::kable(tempdf)
+```
+</div>
+
+\ \
+\ \
+
+**Owners:** Human Islet Research Network (HIRN) \
+**Objective:** Predict new onset T1D based on inclusion levels of AS events, and identify the most salient events for accurate prediction.
+
+## Approach 
+
+<div class="column-left">
+**Model:** Random Forest 
+
+  * Implemented in R using the tidymodels and ranger packages.
+
+**Preprocessing:** Event data in Cohort 1 that are missing in Cohort 2 are imputed based on the means of the Cohort 1 data.
+
+**Tuning:** Grid-search 
+
+  * Repeated 3-fold cross-validation with 25 repeats
+  * Tuned over the number of trees (100, 200, 300, 400, 500) and false discovery rate (FDR) threshold (0.05, 0.01, 0.005, 0.001)
+  * Other model hyperparameters (i.e. the number of randomly selected predictors and the minimal node size) were kept at software defaults
+  * Area-under-the-curve (AUC) was used as the selection metric
+
+**Final Model:**  
+
+  * 300 trees; FDR threshold of 0.001
+  * Evaluated on training data through repeated 3-fold cross-validation with 100 repeats
+  * Evaluated on (mean-imputed) testing data
+  * Evaluations on training and test data repeated 100 times
+  * AUC used as the evaluation metric
+</div>
+
+<div class="column-right">
+\ \ 
+\ \
+\ \ 
+\ \
+
+```{r, echo = FALSE}
+
+temp_se <- se_auctune %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::select(FDR, trees, mean) %>%
+  dplyr::rename(AUC = mean) %>%
+  dplyr::mutate(FDR = factor(FDR, levels = c(0.001, 0.005, 0.01, 0.05)),
+                trees = factor(trees, levels = c(100, 200, 300, 400, 500)))
+        
+temp_ri <- ri_auctune %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::select(FDR, trees, mean) %>%
+  dplyr::rename(AUC = mean) %>%
+  dplyr::mutate(FDR = factor(FDR, levels = c(0.001, 0.005, 0.01, 0.05)),
+                trees = factor(trees, levels = c(100, 200, 300, 400, 500)))
+        
+temp_a5ss <- a5ss_auctune %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::select(FDR, trees, mean) %>%
+  dplyr::rename(AUC = mean) %>%
+  dplyr::mutate(FDR = factor(FDR, levels = c(0.001, 0.005, 0.01, 0.05)),
+                 trees = factor(trees, levels = c(100, 200, 300, 400, 500)))
+        
+temp_a3ss <- a3ss_auctune %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::select(FDR, trees, mean) %>%
+  dplyr::rename(AUC = mean) %>%
+  dplyr::mutate(FDR = factor(FDR, levels = c(0.001, 0.005, 0.01, 0.05)),
+                 trees = factor(trees, levels = c(100, 200, 300, 400, 500)))
+        
+temp_mxe <- mxe_auctune %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::select(FDR, trees, mean) %>%
+  dplyr::rename(AUC = mean) %>%
+  dplyr::mutate(FDR = factor(FDR, levels = c(0.001, 0.005, 0.01, 0.05)),
+                trees = factor(trees, levels = c(100, 200, 300, 400, 500)))
+        
+temp_mean <- temp_se %>%
+  dplyr::mutate(AUC_ri = temp_ri$AUC,
+                AUC_a5ss = temp_a5ss$AUC,
+                AUC_a3ss = temp_a3ss$AUC,
+                AUC_mxe = temp_mxe$AUC)
+temp_mean$AUC_mean <- rowMeans(temp_mean %>% dplyr::select(AUC, AUC_ri, AUC_a5ss, AUC_a3ss, AUC_mxe))
+temp_mean <- temp_mean %>%
+  dplyr::select(FDR, trees, AUC_mean) %>%
+  dplyr::rename(AUC = AUC_mean) %>%
+  dplyr::mutate(FDR = factor(FDR, levels = c(0.001, 0.005, 0.01, 0.05)),
+                trees = factor(trees, levels = c(100, 200, 300, 400, 500)))
+
+ggplot(temp_mean, aes(trees, FDR)) +
+       geom_tile(aes(fill = AUC)) + scale_fill_distiller(palette = "YlOrRd", direction = -1) + 
+       theme_bw() + ggtitle("AUC, Averaged Over Event Types")
+        
+```
+</div>
+
+\ \
+\ \
+\ \
+\ \
+
+*Data are accessible on [DataHub](https://data.pnnl.gov/group/nodes/dataset/33494). Code for data processing, model tuning, and final model fitting/evaluation is available on [GitHub](https://github.com/AI-ML-Ready-Data-for-Type-1-Diabetes/HIRN_SpliceEvents).*
+
+## Results
+
+```{r, echo = FALSE, include=FALSE}
+allres_se <- readRDS(file = "file/path/to/se_tidymodels_finalfit.rds")
+allres_ri <- readRDS(file = "file/path/to/ri_tidymodels_finalfit.rds")
+allres_a5ss <- readRDS(file = "file/path/to/a5ss_tidymodels_finalfit.rds")
+allres_a3ss <- readRDS(file = "file/path/to/a3ss_tidymodels_finalfit.rds")
+allres_mxe <- readRDS(file = "file/path/to/mxe_tidymodels_finalfit.rds")
+
+# Training data AUC
+a3ss_auc_train <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_a3ss, train_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = mean) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Alternative 3' splice site (A3SS)")
+
+a5ss_auc_train <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_a5ss, train_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = mean) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Alternative 5' splice site (A5SS)")
+
+mxe_auc_train <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_mxe, train_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = mean) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Mutually exclusive exons (MXE)")
+
+ri_auc_train <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_ri, train_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = mean) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Retained Intron (RI)")
+
+se_auc_train <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_se, train_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = mean) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Skipped Exon (SE)")
+
+all_auc_train <- rbind(a3ss_auc_train, a5ss_auc_train, mxe_auc_train, ri_auc_train, se_auc_train)
+
+all_auc_train <- all_auc_train %>%
+  dplyr::mutate(Event = factor(.data$Event, levels = c("Retained Intron (RI)", "Skipped Exon (SE)", "Alternative 5' splice site (A5SS)", "Alternative 3' splice site (A3SS)", "Mutually exclusive exons (MXE)")))
+
+# Test data AUC
+a3ss_auc_test <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_a3ss, test_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = .estimate) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Alternative 3' splice site (A3SS)")
+
+a5ss_auc_test <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_a5ss, test_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = .estimate) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Alternative 5' splice site (A5SS)")
+
+mxe_auc_test <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_mxe, test_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = .estimate) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Mutually exclusive exons (MXE)")
+
+ri_auc_test <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_ri, test_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = .estimate) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Retained Intron (RI)")
+
+se_auc_test <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_se, test_perf))) %>%
+  dplyr::filter(.metric == "roc_auc") %>%
+  dplyr::rename(ROC = .estimate) %>%
+  dplyr::select(ROC) %>% dplyr::mutate(Run = 1:100, Event = "Skipped Exon (SE)")
+
+
+all_auc_test <- rbind(a3ss_auc_test, a5ss_auc_test, mxe_auc_test, ri_auc_test, se_auc_test)
+
+all_auc_test <- all_auc_test %>%
+  dplyr::mutate(Event = factor(.data$Event, levels = c("Retained Intron (RI)", "Skipped Exon (SE)", "Alternative 5' splice site (A5SS)", "Alternative 3' splice site (A3SS)", "Mutually exclusive exons (MXE)")))
+
+
+
+# Variable Importance
+a3ss_vi <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_a3ss, var_imp))) %>% 
+  dplyr::rename(MergeID = Variable) %>%
+  dplyr::left_join(a3ss_traintest %>% dplyr::select(MergeID, geneSymbol), by = "MergeID") %>%
+  dplyr::mutate(Run = rep(1:100, each = nrow(.)/100), Event = "Alternative 3' splice site (A3SS)") %>%
+  dplyr::select(geneSymbol, Importance, Run, Event, MergeID)
+
+a5ss_vi <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_a5ss, var_imp))) %>%
+  dplyr::rename(MergeID = Variable) %>%
+  dplyr::left_join(a5ss_traintest %>% dplyr::select(MergeID, geneSymbol), by = "MergeID") %>%
+  dplyr::mutate(Run = rep(1:100, each = nrow(.)/100), Event = "Alternative 5' splice site (A5SS)") %>%
+  dplyr::select(geneSymbol, Importance, Run, Event, MergeID)
+
+mxe_vi <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_mxe, var_imp))) %>%
+  dplyr::rename(MergeID = Variable) %>%
+  dplyr::left_join(mxe_traintest %>% dplyr::select(MergeID, geneSymbol), by = "MergeID") %>%
+  dplyr::mutate(Run = rep(1:100, each = nrow(.)/100), Event = "Mutually exclusive exons (MXE)") %>%
+  dplyr::select(geneSymbol, Importance, Run, Event, MergeID)
+
+ri_vi <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_ri, var_imp))) %>%
+  dplyr::rename(MergeID = Variable) %>%
+  dplyr::left_join(ri_traintest %>% dplyr::select(MergeID, geneSymbol), by = "MergeID") %>%
+  dplyr::mutate(Run = rep(1:100, each = nrow(.)/100), Event = "Retained Intron (RI)") %>%
+  dplyr::select(geneSymbol, Importance, Run, Event, MergeID)
+
+se_vi <- Reduce("rbind", rlist::list.ungroup(rlist::list.select(allres_se, var_imp))) %>%
+  dplyr::rename(MergeID = Variable) %>%
+  dplyr::left_join(se_traintest %>% dplyr::select(MergeID, geneSymbol), by = "MergeID") %>%
+  dplyr::mutate(Run = rep(1:100, each = nrow(.)/100), Event = "Skipped Exon (SE)") %>%
+  dplyr::select(geneSymbol, Importance, Run, Event, MergeID)
+
+all_vi <- rbind(a3ss_vi, a5ss_vi, mxe_vi, ri_vi, se_vi)
+
+all_vi <- all_vi %>%
+  dplyr::mutate(Event = factor(.data$Event, levels = c("Retained Intron (RI)", "Skipped Exon (SE)", "Alternative 5' splice site (A5SS)", "Alternative 3' splice site (A3SS)", "Mutually exclusive exons (MXE)")))
+
+```
+
+```{r, echo = FALSE}
+
+# Table 1 Training Data Column
+tab1_train <- all_auc_train %>%
+  dplyr::group_by(Event) %>%
+  dplyr::summarise(AvgAUC_TRAIN = round(mean(ROC),3),
+                   LB_TRAIN = round(quantile(ROC, 0.025),3),
+                   UB_TRAIN = round(quantile(ROC, 0.975),3))
+
+# Table 1 Test Data Column
+tab1_test <- all_auc_test %>%
+  dplyr::group_by(Event) %>%
+  dplyr::summarise(AvgAUC_TEST = round(mean(ROC),3),
+                   LB_TEST = round(quantile(ROC, 0.025),3),
+                   UB_TEST = round(quantile(ROC, 0.975),3))
+
+
+tab1_df <- dplyr::full_join(tab1_train, tab1_test, by = "Event") %>% 
+  dplyr::mutate(`Event Count` = c(nrow(ri_vi)/100,
+                                  nrow(se_vi)/100,
+                                  nrow(a5ss_vi)/100,
+                                  nrow(a3ss_vi)/100,
+                                  nrow(mxe_vi)/100)) %>%
+  dplyr::mutate(`AUC, Training (95% CI)` = paste0(AvgAUC_TRAIN, " (", LB_TRAIN, ", ", UB_TRAIN, ")"),
+                `AUC, Test (95% CI)` = paste0(AvgAUC_TEST, " (", LB_TEST, ", ", UB_TEST, ")")) %>%
+  dplyr::select(`Event`, `Event Count`, `AUC, Training (95% CI)`, `AUC, Test (95% CI)`)
+
+knitr::kable(tab1_df)
+```
+
+```{r, echo = FALSE, message = FALSE, figures-side, fig.show="hold", out.width="50%"}
+all_auc_train <- all_auc_train %>% dplyr::mutate(Dataset = "Train")
+all_auc_test <- all_auc_test %>% dplyr::mutate(Dataset = "Test")
+all_auc_traintest <- rbind.data.frame(all_auc_train, all_auc_test) %>%
+  dplyr::mutate(Dataset = factor(.data$Dataset, levels = c("Train", "Test")))
+
+ggplot(all_auc_traintest %>% dplyr::filter(.data$Event %in% c("Retained Intron (RI)", "Skipped Exon (SE)", "Alternative 5' splice site (A5SS)", "Alternative 3' splice site (A3SS)", "Mutually exclusive exons (MXE)")), aes(x = Event, y = ROC, fill = Dataset)) + ylab("AUC") + ggtitle("AUC Distributions Over 100 Evaluations") + xlab("Event Type") +
+  geom_boxplot() + theme_bw() + scale_y_continuous(breaks = seq(0.3, 1, 0.1)) + coord_flip()
+
+
+
+tab_ri_vi <- ri_vi %>%
+  dplyr::group_by(geneSymbol, MergeID) %>%
+  dplyr::summarise(AvgImportance = round(mean(Importance),3),
+                   LB_Importance = round(quantile(Importance, 0.025),3),
+                   UB_Importance = round(quantile(Importance, 0.975),3)) %>%
+  dplyr::arrange(desc(AvgImportance)) %>% 
+            dplyr::mutate(label = purrr::map2(geneSymbol, MergeID, function(x,y){paste0(x, "_", y)})) %>%
+            dplyr::ungroup() %>%
+            dplyr::mutate(label = as.character(label)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::mutate(Event = "RI") %>%
+  dplyr::group_by(geneSymbol) %>%
+  dplyr::mutate(tempid = dplyr::row_number()) %>%
+  dplyr::mutate(geneSymbol = paste0(geneSymbol, "_", tempid))
+
+tab_se_vi <- se_vi %>%
+  dplyr::group_by(geneSymbol, MergeID) %>%
+  dplyr::summarise(AvgImportance = round(mean(Importance),3),
+                   LB_Importance = round(quantile(Importance, 0.025),3),
+                   UB_Importance = round(quantile(Importance, 0.975),3)) %>%
+  dplyr::arrange(desc(AvgImportance)) %>% 
+            dplyr::mutate(label = purrr::map2(geneSymbol, MergeID, function(x,y){paste0(x, "_", y)})) %>%
+            dplyr::ungroup() %>%
+            dplyr::mutate(label = as.character(label)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::mutate(Event = "SE") %>%
+  dplyr::group_by(geneSymbol) %>%
+  dplyr::mutate(tempid = dplyr::row_number()) %>%
+  dplyr::mutate(geneSymbol = paste0(geneSymbol, "_", tempid))
+
+
+tab_a5ss_vi <- a5ss_vi %>%
+  dplyr::group_by(geneSymbol, MergeID) %>%
+  dplyr::summarise(AvgImportance = round(mean(Importance),3),
+                   LB_Importance = round(quantile(Importance, 0.025),3),
+                   UB_Importance = round(quantile(Importance, 0.975),3)) %>%
+  dplyr::arrange(desc(AvgImportance)) %>% 
+            dplyr::mutate(label = purrr::map2(geneSymbol, MergeID, function(x,y){paste0(x, "_", y)})) %>%
+            dplyr::ungroup() %>%
+            dplyr::mutate(label = as.character(label)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::mutate(Event = "A3SS") %>%
+  dplyr::group_by(geneSymbol) %>%
+  dplyr::mutate(tempid = dplyr::row_number()) %>%
+  dplyr::mutate(geneSymbol = paste0(geneSymbol, "_", tempid))
+
+
+tab_a3ss_vi <- a3ss_vi %>%
+  dplyr::group_by(geneSymbol, MergeID) %>%
+  dplyr::summarise(AvgImportance = round(mean(Importance),3),
+                   LB_Importance = round(quantile(Importance, 0.025),3),
+                   UB_Importance = round(quantile(Importance, 0.975),3)) %>%
+  dplyr::arrange(desc(AvgImportance)) %>% 
+            dplyr::mutate(label = purrr::map2(geneSymbol, MergeID, function(x,y){paste0(x, "_", y)})) %>%
+            dplyr::ungroup() %>%
+            dplyr::mutate(label = as.character(label)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::mutate(Event = "A5SS") %>%
+  dplyr::group_by(geneSymbol) %>%
+  dplyr::mutate(tempid = dplyr::row_number()) %>%
+  dplyr::mutate(geneSymbol = paste0(geneSymbol, "_", tempid))
+
+
+tab_mxe_vi <- mxe_vi %>%
+  dplyr::group_by(geneSymbol, MergeID) %>%
+  dplyr::summarise(AvgImportance = round(mean(Importance),3),
+                   LB_Importance = round(quantile(Importance, 0.025),3),
+                   UB_Importance = round(quantile(Importance, 0.975),3)) %>%
+  dplyr::arrange(desc(AvgImportance)) %>% 
+            dplyr::mutate(label = purrr::map2(geneSymbol, MergeID, function(x,y){paste0(x, "_", y)})) %>%
+            dplyr::ungroup() %>%
+            dplyr::mutate(label = as.character(label)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::mutate(Event = "MXE") %>%
+  dplyr::group_by(geneSymbol) %>%
+  dplyr::mutate(tempid = dplyr::row_number()) %>%
+  dplyr::mutate(geneSymbol = paste0(geneSymbol, "_", tempid))
+
+
+tab_vi <- rbind(tab_ri_vi, tab_se_vi, tab_a5ss_vi, tab_a3ss_vi, tab_mxe_vi)
+tab_vi <- tab_vi %>%
+  dplyr::mutate(label = factor(geneSymbol, levels = unique(tab_vi$geneSymbol)))
+
+ggplot(data = tab_vi, aes(x = geneSymbol, y = AvgImportance)) + geom_bar(stat = "identity") + coord_flip() +
+            geom_errorbar(aes(x = geneSymbol, ymin = LB_Importance, ymax = UB_Importance)) + theme_bw() +
+            xlab("Gene") + ylab("Mean Importance") + ggtitle("Top 10 Most Important Genes per Event Type") +
+            facet_wrap(~Event, scale = "free")
+
+```
